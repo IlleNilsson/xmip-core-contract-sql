@@ -1,42 +1,25 @@
-# Xmip repository template — Rust
+# xmip-core-contract-sql
 
-This repository is the starter snapshot for a Rust Xmip module repository. It is
-not an Xmip runtime capability.
+The SQL content contract, a technology of
+[xmip-core-contract](https://github.com/IlleNilsson/xmip-core-contract).
 
-For a .NET 11 surface — the CLI, the PowerShell module, the MAUI desktop GUI or
-the Blazor web GUI — use
-[xmip-template-dotnet](https://github.com/IlleNilsson/xmip-template-dotnet)
-instead. ADR-0014: every user-interfacing module is .NET 11, and
-`xmip-core-abi` is the exception.
+Two claims. **Well-formedness is a given**: the Stream is UTF-8 text that
+tokenizes and splits cleanly — balanced quotes, comments and parentheses,
+statements separated by `;`, each beginning as SELECT, INSERT, UPDATE, DELETE,
+MERGE, DDL, DCL or TCL. **Conformance is a given once the contract is named**:
+a Location that names the statement kinds it allows — `select,insert` or
+`read-only` — holds every script to them, and each statement outside the set
+is named by its kind and position.
 
-A repository generated from this template has independent history. Later
-template changes do not automatically rewrite generated repositories.
-
-## Before implementation
-
-Follow [TEMPLATE_SETUP.md](TEMPLATE_SETUP.md), and item 3 first. The new
-repository must be classified and declared in the authoritative Xmip
-architecture manifest before its responsibility or dependencies are treated as
-accepted architecture.
+The text is ANSI SQL (ISO/IEC 9075) statement text, vendor-neutral: nothing
+here knows a dialect, and nothing executes.
 
 ## Toolchain
 
-`rust-toolchain.toml` pins the toolchain for the whole estate. rustup reads it
-automatically and installs what is missing. Do not change it here — raising it
-is one deliberate change across every repository.
-
-## Shared governance
-
-Repository-specific licensing remains explicit in [LICENSE](LICENSE).
-Contribution, security, support, issue and pull-request defaults are inherited
-from [IlleNilsson/.github](https://github.com/IlleNilsson/.github) when they are
-not overridden locally.
+`rust-toolchain.toml` pins the toolchain for the whole estate. Do not change it
+here.
 
 ## Verification
 
 The included workflow is manual-only and calls the versioned shared workflow at
-`IlleNilsson/.github@v1`. It does not run on pushes, pull requests or a
-schedule.
-
-The ordered stages are formatting, semantic analysis, linting, compilation and
-linking, and test execution. Packaging and publishing are not configured.
+`IlleNilsson/.github@v1`.
