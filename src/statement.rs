@@ -314,11 +314,7 @@ const WITH_BODIES: [Kind; 6] = [
 ];
 
 fn issue(code: &str, message: &str, ordinal: usize) -> ValidationIssue {
-    ValidationIssue {
-        code: code.to_string(),
-        message: message.to_string(),
-        path: Some(format!("statement {ordinal}")),
-    }
+    ValidationIssue::at(code, message, &format!("statement {ordinal}"))
 }
 
 #[cfg(test)]

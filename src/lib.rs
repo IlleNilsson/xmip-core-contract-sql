@@ -165,11 +165,11 @@ impl Contract for SqlContract {
         let text = match std::str::from_utf8(stream.bytes()) {
             Ok(text) => text,
             Err(error) => {
-                return Ok(result(vec![ValidationIssue {
-                    code: "not-text".to_string(),
-                    message: format!("not UTF-8 text: {error}"),
-                    path: Some(format!("byte {}", error.valid_up_to())),
-                }]));
+                return Ok(ValidationResult::of(vec![ValidationIssue::at(
+                    "not-text",
+                    &format!("not UTF-8 text: {error}"),
+                    &format!("byte {}", error.valid_up_to()),
+                )]));
             }
         };
         let script = Script::parse(text);
@@ -180,21 +180,22 @@ impl Contract for SqlContract {
                     continue;
                 };
                 if !allowed.permits(kind) {
-                    issues.push(ValidationIssue {
-                        code: "statement-not-allowed".to_string(),
-                        message: format!(
-                            "a {} statement at line {}; the contract allows {}",
-                            kind.name().to_ascii_uppercase(),
-                            statement.line,
-                            allowed.reference()
-                        ),
-                        path: Some(statement.path()),
-                    });
+                    let message = format!(
+                        "a {} statement at line {}; the contract allows {}",
+                        kind.name().to_ascii_uppercase(),
+                        statement.line,
+                        allowed.reference()
+                    );
+                    issues.push(ValidationIssue::at(
+                        "statement-not-allowed",
+                        &message,
+                        &statement.path(),
+                    ));
                 }
             }
         }
         issues.sort_by_key(|issue| ordinal(issue.path.as_deref()));
-        Ok(result(issues))
+        Ok(ValidationResult::of(issues))
     }
 }
 
@@ -203,13 +204,6 @@ fn ordinal(path: Option<&str>) -> usize {
     path.and_then(|p| p.strip_prefix("statement "))
         .and_then(|n| n.parse().ok())
         .unwrap_or(0)
-}
-
-fn result(issues: Vec<ValidationIssue>) -> ValidationResult {
-    ValidationResult {
-        valid: issues.is_empty(),
-        issues,
-    }
 }
 
 /// Loads the contract a Location names: an empty reference is the bare
@@ -232,6 +226,7 @@ impl ContractFactory for SqlFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use contract::fixture::stream_as as stream;
     use xcore::StreamId;
 
     const SCRIPT: &str = "-- a small migration\n\
@@ -241,14 +236,6 @@ mod tests {
         WITH named AS (SELECT * FROM person WHERE name <> '')\n\
         SELECT count(*) FROM named;\n\
         COMMIT;\n";
-
-    fn stream(text: &str, media_type: Option<&str>) -> Stream {
-        Stream::new(
-            StreamId::new(1),
-            text.as_bytes().to_vec(),
-            media_type.map(str::to_string),
-        )
-    }
 
     fn codes(result: &ValidationResult) -> Vec<(&str, &str)> {
         result
