@@ -29,7 +29,7 @@
 pub mod lexer;
 pub mod statement;
 
-use contract::{
+use sdk::contract::{
     Contract, ContractDescriptor, ContractError, ContractFactory, ContractId, ValidationIssue,
     ValidationResult,
 };

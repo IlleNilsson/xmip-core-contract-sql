@@ -8,7 +8,7 @@
 //! `statement N`, counting the non-empty statements from 1.
 
 use crate::lexer::{Token, tokenize};
-use contract::ValidationIssue;
+use sdk::contract::ValidationIssue;
 
 /// The kind of statement, named by the keyword it begins with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
