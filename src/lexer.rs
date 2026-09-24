@@ -9,6 +9,7 @@
 //! to there is still returned so the caller can say which statement it was in.
 
 use codec::char_reader::CharReader;
+use codec::sql::Delimiter;
 
 /// What a token is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,21 +140,10 @@ fn unterminated(what: &str, code: &'static str, line: usize) -> LexError {
     }
 }
 
-/// Reads a quoted run, a doubled quote standing for one; `None` when the
-/// text ends inside it.
+/// Reads a quoted run, a doubled quote standing for one, through
+/// `codec::sql`; `None` when the text ends inside it.
 fn quoted(reader: &mut CharReader<'_>, quote: char) -> Option<String> {
-    reader.bump();
-    let mut text = String::new();
-    loop {
-        let c = reader.bump()?;
-        if c != quote {
-            text.push(c);
-        } else if reader.eat(quote) {
-            text.push(quote);
-        } else {
-            return Some(text);
-        }
-    }
+    Delimiter::new(quote, quote).read(reader).ok()
 }
 
 #[cfg(test)]
