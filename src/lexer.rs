@@ -8,6 +8,8 @@
 //! stops at the first quote or comment that never closes, and what was read up
 //! to there is still returned so the caller can say which statement it was in.
 
+use codec::char_reader::CharReader;
+
 /// What a token is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenKind {
@@ -63,23 +65,23 @@ pub struct Lexed {
     pub error: Option<LexError>,
 }
 
-/// Reads `text` into tokens.
+/// Reads `text` into tokens. Whitespace is any Unicode whitespace, a word may
+/// hold any letter, and a column counts characters.
 #[must_use]
 pub fn tokenize(text: &str) -> Lexed {
-    let mut reader = Reader::new(text);
+    let mut reader = CharReader::new(text);
     let mut lexed = Lexed::default();
     while let Some(c) = reader.peek() {
-        if c.is_whitespace() {
-            reader.bump();
+        if reader.skip_whitespace() {
             continue;
         }
-        let (line, column) = (reader.line, reader.column);
-        if c == '-' && reader.peek_next() == Some('-') {
-            reader.skip_line();
+        let (line, column) = (reader.line(), reader.column());
+        if reader.eat_str("--") {
+            reader.skip_past("\n");
             continue;
         }
-        if c == '/' && reader.peek_next() == Some('*') {
-            if !reader.skip_block_comment() {
+        if reader.eat_str("/*") {
+            if !reader.skip_past("*/") {
                 lexed.error = Some(unterminated("comment", "unterminated-comment", line));
                 return lexed;
             }
@@ -96,14 +98,24 @@ pub fn tokenize(text: &str) -> Lexed {
                         "unterminated-identifier",
                     )
                 };
-                let Some(text) = reader.quoted(c) else {
+                let Some(text) = quoted(&mut reader, c) else {
                     lexed.error = Some(unterminated(what, code, line));
                     return lexed;
                 };
                 (kind, text)
             }
-            _ if c.is_alphabetic() || c == '_' => (TokenKind::Word, reader.word()),
-            _ if c.is_ascii_digit() => (TokenKind::Number, reader.number()),
+            _ if c.is_alphabetic() || c == '_' => (
+                TokenKind::Word,
+                reader
+                    .take_while(|c| c.is_alphanumeric() || c == '_' || c == '$')
+                    .to_string(),
+            ),
+            _ if c.is_ascii_digit() => (
+                TokenKind::Number,
+                reader
+                    .take_while(|c| c.is_ascii_alphanumeric() || c == '.')
+                    .to_string(),
+            ),
             _ => {
                 reader.bump();
                 (TokenKind::Punct, c.to_string())
@@ -127,104 +139,20 @@ fn unterminated(what: &str, code: &'static str, line: usize) -> LexError {
     }
 }
 
-/// A cursor over the text's characters that keeps the line and column.
-struct Reader {
-    chars: Vec<char>,
-    at: usize,
-    line: usize,
-    column: usize,
-}
-
-impl Reader {
-    fn new(text: &str) -> Self {
-        Self {
-            chars: text.chars().collect(),
-            at: 0,
-            line: 1,
-            column: 1,
-        }
-    }
-
-    fn peek(&self) -> Option<char> {
-        self.chars.get(self.at).copied()
-    }
-
-    fn peek_next(&self) -> Option<char> {
-        self.chars.get(self.at + 1).copied()
-    }
-
-    fn bump(&mut self) -> Option<char> {
-        let c = self.peek()?;
-        self.at += 1;
-        if c == '\n' {
-            self.line += 1;
-            self.column = 1;
-        } else {
-            self.column += 1;
-        }
-        Some(c)
-    }
-
-    /// Reads through the end of the line, or the end of the text.
-    fn skip_line(&mut self) {
-        while let Some(c) = self.bump() {
-            if c == '\n' {
-                return;
-            }
-        }
-    }
-
-    /// Reads a `/* */` comment; `false` when the text ends inside it.
-    fn skip_block_comment(&mut self) -> bool {
-        self.bump();
-        self.bump();
-        while let Some(c) = self.bump() {
-            if c == '*' && self.peek() == Some('/') {
-                self.bump();
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Reads a quoted run, a doubled quote standing for one; `None` when the
-    /// text ends inside it.
-    fn quoted(&mut self, quote: char) -> Option<String> {
-        self.bump();
-        let mut text = String::new();
-        loop {
-            let c = self.bump()?;
-            if c == quote {
-                if self.peek() == Some(quote) {
-                    self.bump();
-                    text.push(quote);
-                } else {
-                    return Some(text);
-                }
-            } else {
-                text.push(c);
-            }
-        }
-    }
-
-    fn word(&mut self) -> String {
-        self.take_while(|c| c.is_alphanumeric() || c == '_' || c == '$')
-    }
-
-    fn number(&mut self) -> String {
-        self.take_while(|c| c.is_ascii_alphanumeric() || c == '.')
-    }
-
-    fn take_while(&mut self, keep: impl Fn(char) -> bool) -> String {
-        let mut text = String::new();
-        while let Some(c) = self.peek() {
-            if !keep(c) {
-                break;
-            }
-            self.bump();
+/// Reads a quoted run, a doubled quote standing for one; `None` when the
+/// text ends inside it.
+fn quoted(reader: &mut CharReader<'_>, quote: char) -> Option<String> {
+    reader.bump();
+    let mut text = String::new();
+    loop {
+        let c = reader.bump()?;
+        if c != quote {
             text.push(c);
+        } else if reader.eat(quote) {
+            text.push(quote);
+        } else {
+            return Some(text);
         }
-        text
     }
 }
 
@@ -275,5 +203,30 @@ mod tests {
         let error = tokenize("SELECT \"a").error.expect("error");
         assert_eq!(error.code, "unterminated-identifier");
         assert!(tokenize("SELECT 1 -- trailing").error.is_none());
+    }
+
+    #[test]
+    fn multibyte_whitespace_and_text_keep_their_columns() {
+        let lexed = tokenize("SELECT\u{a0}größe,\u{3000}'Zoë 名前' /* é */ FROM\u{2003}\"täble\";");
+        assert!(lexed.error.is_none(), "{:?}", lexed.error);
+        let t = &lexed.tokens;
+        assert_eq!((t[1].kind, t[1].text.as_str()), (TokenKind::Word, "größe"));
+        assert_eq!(t[1].column, 8);
+        assert_eq!(
+            (t[3].kind, t[3].text.as_str()),
+            (TokenKind::Text, "Zoë 名前")
+        );
+        assert_eq!(t[3].column, 15);
+        assert_eq!(t[4].word().as_deref(), Some("FROM"));
+        assert_eq!(
+            (t[5].kind, t[5].text.as_str()),
+            (TokenKind::Identifier, "täble")
+        );
+        assert!(t[6].is_punct(';'));
+        assert_eq!(t[2].text, ",");
+        let stray = tokenize("SELECT €");
+        assert_eq!(stray.tokens[1].text, "€");
+        let error = tokenize("SELECT 'öpen\u{a0}").error.expect("error");
+        assert_eq!(error.code, "unterminated-string");
     }
 }
