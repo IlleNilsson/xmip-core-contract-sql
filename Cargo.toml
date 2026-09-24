@@ -18,6 +18,8 @@ path = "src/lib.rs"
 # (repository-model.md). The Contract trait and its value types live there.
 contract = { package = "xmip-core-contract", git = "https://github.com/IlleNilsson/xmip-core-contract", branch = "main" }
 stream = { package = "xmip-core-stream", git = "https://github.com/IlleNilsson/xmip-core-stream", branch = "main" }
+# The character reader every lexer walks its text with.
+codec = { package = "xmip-core-library-codec", git = "https://github.com/IlleNilsson/xmip-core-library-codec", branch = "main" }
 
 [dev-dependencies]
 # The parent's Stream fixture, for the tests only (ADR-0044).

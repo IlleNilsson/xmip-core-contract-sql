@@ -14,6 +14,10 @@ is named by its kind and position.
 The text is ANSI SQL (ISO/IEC 9075) statement text, vendor-neutral: nothing
 here knows a dialect, and nothing executes.
 
+The text is read through `xmip-core-library-codec`'s character reader: any
+Unicode whitespace separates tokens, a word may hold any letter, and a
+token's column counts characters.
+
 ## Toolchain
 
 `rust-toolchain.toml` pins the toolchain for the whole estate. Do not change it
