@@ -158,18 +158,19 @@ impl Contract for SqlContract {
         // Text whose first statement begins with a keyword is SQL enough to
         // claim; a bound set does not narrow identify — that is validate's
         // job, and an operator wants "not allowed" reported, not unclaimed.
-        Ok(std::str::from_utf8(stream.bytes())
+        Ok(stream
+            .text()
             .is_ok_and(|text| Script::parse(text).opens_recognised()))
     }
 
     fn validate(&self, stream: &Stream) -> Result<ValidationResult, ContractError> {
-        let text = match std::str::from_utf8(stream.bytes()) {
+        let text = match stream.text() {
             Ok(text) => text,
             Err(error) => {
                 return Ok(ValidationResult::of(vec![ValidationIssue::at(
                     "not-text",
-                    &format!("not UTF-8 text: {error}"),
-                    &format!("byte {}", error.valid_up_to()),
+                    format!("not UTF-8 text: {error}"),
+                    format!("byte {}", error.valid_up_to()),
                 )]));
             }
         };
@@ -190,7 +191,7 @@ impl Contract for SqlContract {
                     issues.push(ValidationIssue::at(
                         "statement-not-allowed",
                         &message,
-                        &statement.path(),
+                        statement.path(),
                     ));
                 }
             }
@@ -258,7 +259,7 @@ mod tests {
         result
             .issues
             .iter()
-            .map(|i| (i.code.as_str(), i.path.as_deref().unwrap_or("")))
+            .map(|i| (i.code.as_ref(), i.path.as_deref().unwrap_or("")))
             .collect()
     }
 

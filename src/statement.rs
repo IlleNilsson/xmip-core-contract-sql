@@ -313,8 +313,8 @@ const WITH_BODIES: [Kind; 6] = [
     Kind::Values,
 ];
 
-fn issue(code: &str, message: &str, ordinal: usize) -> ValidationIssue {
-    ValidationIssue::at(code, message, &format!("statement {ordinal}"))
+fn issue(code: &'static str, message: &str, ordinal: usize) -> ValidationIssue {
+    ValidationIssue::at(code, message, format!("statement {ordinal}"))
 }
 
 #[cfg(test)]
@@ -377,7 +377,7 @@ mod tests {
         let placed: Vec<(&str, &str)> = script
             .issues
             .iter()
-            .map(|i| (i.code.as_str(), i.path.as_deref().unwrap_or("")))
+            .map(|i| (i.code.as_ref(), i.path.as_deref().unwrap_or("")))
             .collect();
         assert_eq!(
             placed,
