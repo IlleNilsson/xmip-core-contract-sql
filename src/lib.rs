@@ -36,6 +36,7 @@ use contract::{
 use statement::{Class, Kind, Script};
 use std::collections::BTreeSet;
 use stream::Stream;
+use xcore::settings::{Applies, Presence, Setting, Settings};
 
 /// The statement kinds a reference allows.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -215,6 +216,10 @@ impl ContractFactory for SqlFactory {
         "sql"
     }
 
+    fn settings(&self) -> &'static Settings {
+        SETTINGS
+    }
+
     fn load(&self, reference: &str) -> Result<Box<dyn Contract>, ContractError> {
         if reference.trim().is_empty() {
             return Ok(Box::new(SqlContract::new()));
@@ -222,6 +227,18 @@ impl ContractFactory for SqlFactory {
         Ok(Box::new(SqlContract::allowing(Allowed::parse(reference)?)))
     }
 }
+
+/// What a Location gives this contract (ADR-0064, amendment 2026-09-26).
+const SETTINGS: &Settings = &Settings {
+    technology: env!("CARGO_PKG_NAME"),
+    settings: &[Setting {
+        name: "reference",
+        kind: xcore::settings::Kind::Text,
+        presence: Presence::Optional,
+        meaning: "The statement kinds allowed, select,insert or read-only; left out, all are.",
+        applies: Applies::Both,
+    }],
+};
 
 #[cfg(test)]
 mod tests {
@@ -356,5 +373,30 @@ mod tests {
         assert!(SqlContract::allowing(Allowed::parse("call").expect("parse")).is_bound());
         assert!(Allowed::parse("tcl").expect("parse").permits(Kind::Start));
         assert!(!Allowed::parse("tcl").expect("parse").permits(Kind::Set));
+    }
+
+    #[test]
+    fn sql_declares_its_settings_and_reads_through_them() {
+        assert!(SETTINGS.problems().is_empty(), "{:?}", SETTINGS.problems());
+        let given = |name: &str, value: &str| {
+            (
+                name.to_string(),
+                xcore::settings::Given::Text(value.to_string()),
+            )
+        };
+        assert!(SqlFactory.open(Applies::Both, &[]).is_ok(), "bare");
+        let bound = SqlFactory
+            .open(Applies::Receive, &[given("reference", "select,insert")])
+            .expect("bound");
+        assert!(bound.descriptor().id.0.contains("sql:"));
+        let refused = SqlFactory
+            .open(Applies::Send, &[given("unheard_of", "x")])
+            .err()
+            .expect("an unknown setting is refused");
+        assert!(
+            refused.message.contains("unheard_of"),
+            "{}",
+            refused.message
+        );
     }
 }
