@@ -11,6 +11,11 @@ a Location that names the statement kinds it allows — `select,insert` or
 `read-only` — holds every script to them, and each statement outside the set
 is named by its kind and position.
 
+The claims are this crate's when it is called, and the Playground calls it.
+A node holding a Location's Streams to it is
+[decided, not built](../../../../../doc/architecture/estate-map.md#arrival-validation): a node refuses to start a
+Location that names a contract until it does.
+
 The text is ANSI SQL (ISO/IEC 9075) statement text, vendor-neutral: nothing
 here knows a dialect, and nothing executes.
 
