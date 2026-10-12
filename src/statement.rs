@@ -1,5 +1,6 @@
 //! Statements: splitting a token run at `;`, classifying each by the keyword
-//! it begins with, and the classes the kinds fall into.
+//! it begins with — its [`Verb`], `xmip-core-library-sql`'s — and the
+//! classes the kinds fall into.
 //!
 //! A statement's kind is the first word of it, except `WITH`: a common table
 //! expression introduces the statement that follows its definitions, so the
@@ -9,94 +10,7 @@
 
 use crate::lexer::{Token, tokenize};
 use contract::ValidationIssue;
-
-/// The kind of statement, named by the keyword it begins with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Kind {
-    Select,
-    Insert,
-    Update,
-    Delete,
-    Merge,
-    Create,
-    Alter,
-    Drop,
-    Truncate,
-    Grant,
-    Revoke,
-    Begin,
-    Start,
-    Commit,
-    Rollback,
-    Call,
-    Values,
-    Set,
-}
-
-impl Kind {
-    /// Every kind, in keyword order.
-    pub const ALL: [Kind; 18] = [
-        Kind::Select,
-        Kind::Insert,
-        Kind::Update,
-        Kind::Delete,
-        Kind::Merge,
-        Kind::Create,
-        Kind::Alter,
-        Kind::Drop,
-        Kind::Truncate,
-        Kind::Grant,
-        Kind::Revoke,
-        Kind::Begin,
-        Kind::Start,
-        Kind::Commit,
-        Kind::Rollback,
-        Kind::Call,
-        Kind::Values,
-        Kind::Set,
-    ];
-
-    /// The kind `name` names, case-insensitively, keyword or reference word.
-    #[must_use]
-    pub fn of_name(name: &str) -> Option<Kind> {
-        Kind::ALL
-            .into_iter()
-            .find(|kind| kind.name().eq_ignore_ascii_case(name))
-    }
-
-    /// The kind's lower-case name, which is its keyword.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Kind::Select => "select",
-            Kind::Insert => "insert",
-            Kind::Update => "update",
-            Kind::Delete => "delete",
-            Kind::Merge => "merge",
-            Kind::Create => "create",
-            Kind::Alter => "alter",
-            Kind::Drop => "drop",
-            Kind::Truncate => "truncate",
-            Kind::Grant => "grant",
-            Kind::Revoke => "revoke",
-            Kind::Begin => "begin",
-            Kind::Start => "start",
-            Kind::Commit => "commit",
-            Kind::Rollback => "rollback",
-            Kind::Call => "call",
-            Kind::Values => "values",
-            Kind::Set => "set",
-        }
-    }
-
-    /// The class the kind belongs to; `CALL` and `SET` belong to none.
-    #[must_use]
-    pub fn class(self) -> Option<Class> {
-        Class::ALL
-            .into_iter()
-            .find(|class| class.members().contains(&self))
-    }
-}
+use sql::Verb;
 
 /// A class of statement kinds a reference may name as one word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,15 +57,23 @@ impl Class {
         }
     }
 
+    /// The class `verb` belongs to; `CALL` and `SET` belong to none.
+    #[must_use]
+    pub fn of_verb(verb: Verb) -> Option<Class> {
+        Class::ALL
+            .into_iter()
+            .find(|class| class.members().contains(&verb))
+    }
+
     /// The kinds in the class.
     #[must_use]
-    pub fn members(self) -> &'static [Kind] {
+    pub fn members(self) -> &'static [Verb] {
         match self {
-            Class::Ddl => &[Kind::Create, Kind::Alter, Kind::Drop, Kind::Truncate],
-            Class::Dml => &[Kind::Insert, Kind::Update, Kind::Delete, Kind::Merge],
-            Class::ReadOnly => &[Kind::Select, Kind::Values],
-            Class::Tcl => &[Kind::Begin, Kind::Start, Kind::Commit, Kind::Rollback],
-            Class::Dcl => &[Kind::Grant, Kind::Revoke],
+            Class::Ddl => &[Verb::Create, Verb::Alter, Verb::Drop, Verb::Truncate],
+            Class::Dml => &[Verb::Insert, Verb::Update, Verb::Delete, Verb::Merge],
+            Class::ReadOnly => &[Verb::Select, Verb::Values],
+            Class::Tcl => &[Verb::Begin, Verb::Start, Verb::Commit, Verb::Rollback],
+            Class::Dcl => &[Verb::Grant, Verb::Revoke],
         }
     }
 }
@@ -165,7 +87,7 @@ pub struct Statement {
     /// The first token's text as written.
     pub keyword: String,
     /// `None` when the first word is not a recognised keyword.
-    pub kind: Option<Kind>,
+    pub kind: Option<Verb>,
 }
 
 impl Statement {
@@ -264,7 +186,7 @@ fn imbalance(tokens: &[&Token]) -> Option<String> {
 }
 
 /// The statement's kind, and the message when it has none.
-fn classify(tokens: &[&Token]) -> (Option<Kind>, Option<String>) {
+fn classify(tokens: &[&Token]) -> (Option<Verb>, Option<String>) {
     let first = tokens[0];
     let Some(word) = first.word() else {
         let message = format!(
@@ -274,7 +196,7 @@ fn classify(tokens: &[&Token]) -> (Option<Kind>, Option<String>) {
         return (None, Some(message));
     };
     if word != "WITH" {
-        let Some(kind) = Kind::of_name(&word) else {
+        let Some(kind) = Verb::of_name(&word) else {
             let message = format!(
                 "begins with {word} at line {}, not a recognised statement",
                 first.line
@@ -290,7 +212,7 @@ fn classify(tokens: &[&Token]) -> (Option<Kind>, Option<String>) {
         } else if token.is_punct(')') {
             depth = depth.saturating_sub(1);
         } else if depth == 0
-            && let Some(kind) = token.word().and_then(|w| Kind::of_name(&w))
+            && let Some(kind) = token.word().and_then(|w| Verb::of_name(&w))
             && WITH_BODIES.contains(&kind)
         {
             return (Some(kind), None);
@@ -304,13 +226,13 @@ fn classify(tokens: &[&Token]) -> (Option<Kind>, Option<String>) {
 }
 
 /// What a common table expression may introduce.
-const WITH_BODIES: [Kind; 6] = [
-    Kind::Select,
-    Kind::Insert,
-    Kind::Update,
-    Kind::Delete,
-    Kind::Merge,
-    Kind::Values,
+const WITH_BODIES: [Verb; 6] = [
+    Verb::Select,
+    Verb::Insert,
+    Verb::Update,
+    Verb::Delete,
+    Verb::Merge,
+    Verb::Values,
 ];
 
 fn issue(code: &'static str, message: &str, ordinal: usize) -> ValidationIssue {
@@ -321,7 +243,7 @@ fn issue(code: &'static str, message: &str, ordinal: usize) -> ValidationIssue {
 mod tests {
     use super::*;
 
-    fn kinds(text: &str) -> Vec<Option<Kind>> {
+    fn kinds(text: &str) -> Vec<Option<Verb>> {
         Script::parse(text)
             .statements
             .iter()
@@ -336,10 +258,10 @@ mod tests {
              select * from t where n = 'a;b';\nCOMMIT",
         );
         assert!(script.issues.is_empty(), "{:?}", script.issues);
-        let kinds: Vec<Kind> = script.statements.iter().filter_map(|s| s.kind).collect();
+        let kinds: Vec<Verb> = script.statements.iter().filter_map(|s| s.kind).collect();
         assert_eq!(
             kinds,
-            [Kind::Create, Kind::Insert, Kind::Select, Kind::Commit]
+            [Verb::Create, Verb::Insert, Verb::Select, Verb::Commit]
         );
         assert_eq!(script.statements[2].ordinal, 3);
         assert_eq!(script.statements[2].line, 5);
@@ -354,11 +276,11 @@ mod tests {
     fn with_takes_the_kind_of_what_it_introduces() {
         assert_eq!(
             kinds("WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x"),
-            [Some(Kind::Insert)]
+            [Some(Verb::Insert)]
         );
         assert_eq!(
             kinds("WITH x AS (SELECT 1) SELECT * FROM x"),
-            [Some(Kind::Select)]
+            [Some(Verb::Select)]
         );
         let script = Script::parse("WITH x AS (SELECT 1)");
         assert_eq!(script.statements[0].kind, None);
@@ -401,14 +323,14 @@ mod tests {
     #[test]
     fn classes_partition_the_kinds_they_name() {
         assert_eq!(Class::of_name("READ-ONLY"), Some(Class::ReadOnly));
-        assert_eq!(Kind::of_name("Merge"), Some(Kind::Merge));
-        assert_eq!(Kind::Merge.class(), Some(Class::Dml));
-        assert_eq!(Kind::Call.class(), None);
-        assert_eq!(Kind::Set.class(), None);
+        assert_eq!(Verb::of_name("Merge"), Some(Verb::Merge));
+        assert_eq!(Class::of_verb(Verb::Merge), Some(Class::Dml));
+        assert_eq!(Class::of_verb(Verb::Call), None);
+        assert_eq!(Class::of_verb(Verb::Set), None);
         let classed: usize = Class::ALL.iter().map(|c| c.members().len()).sum();
-        assert_eq!(classed, Kind::ALL.len() - 2);
-        for kind in Kind::ALL {
-            assert_eq!(Kind::of_name(kind.name()), Some(kind));
+        assert_eq!(classed, Verb::ALL.len() - 2);
+        for kind in Verb::ALL {
+            assert_eq!(Verb::of_name(kind.name()), Some(kind));
         }
     }
 }

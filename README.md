@@ -21,9 +21,10 @@ here knows a dialect, and nothing executes.
 
 The text is read through `xmip-core-library-codec`'s character reader: any
 Unicode whitespace separates tokens, a word may hold any letter, and a
-token's column counts characters, and a quoted string or identifier, its
-doubled quote undone, is read by the codec's `sql` module, the one SQL
-quoting in the estate.
+token's column counts characters. A quoted string or identifier, its
+doubled quote undone, is read by `xmip-core-library-sql`'s `Delimiter`, and
+a statement's kind is the `Verb` it opens with there, the one SQL in the
+estate (ADR-0044, amendment 2026-10-12).
 
 ## Toolchain
 
