@@ -33,7 +33,8 @@ use contract::{
     Contract, ContractDescriptor, ContractError, ContractFactory, ContractId, ValidationIssue,
     ValidationResult,
 };
-use statement::{Class, Kind, Script};
+use sql::Verb;
+use statement::{Class, Script};
 use std::collections::BTreeSet;
 use stream::Stream;
 use xcore::settings::{Applies, Presence, Setting, Settings};
@@ -41,7 +42,7 @@ use xcore::settings::{Applies, Presence, Setting, Settings};
 /// The statement kinds a reference allows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Allowed {
-    kinds: BTreeSet<Kind>,
+    kinds: BTreeSet<Verb>,
     reference: String,
 }
 
@@ -57,14 +58,14 @@ impl Allowed {
         for word in reference.split(',').map(str::trim) {
             if let Some(class) = Class::of_name(word) {
                 kinds.extend(class.members().iter().copied());
-            } else if let Some(kind) = Kind::of_name(word) {
+            } else if let Some(kind) = Verb::of_name(word) {
                 kinds.insert(kind);
             } else {
                 return Err(ContractError {
                     message: format!(
                         "{word:?} is not a statement kind or class; the kinds are {} and the \
                          classes {}",
-                        names(Kind::ALL.iter().map(|k| k.name())),
+                        names(Verb::ALL.iter().map(|k| k.name())),
                         names(Class::ALL.iter().map(|c| c.name())),
                     ),
                 });
@@ -85,7 +86,7 @@ impl Allowed {
 
     /// Whether `kind` is in the set.
     #[must_use]
-    pub fn permits(&self, kind: Kind) -> bool {
+    pub fn permits(&self, kind: Verb) -> bool {
         self.kinds.contains(&kind)
     }
 }
@@ -372,8 +373,8 @@ mod tests {
         );
         assert!(SqlFactory.load("select,").is_err());
         assert!(SqlContract::allowing(Allowed::parse("call").expect("parse")).is_bound());
-        assert!(Allowed::parse("tcl").expect("parse").permits(Kind::Start));
-        assert!(!Allowed::parse("tcl").expect("parse").permits(Kind::Set));
+        assert!(Allowed::parse("tcl").expect("parse").permits(Verb::Start));
+        assert!(!Allowed::parse("tcl").expect("parse").permits(Verb::Set));
     }
 
     #[test]
