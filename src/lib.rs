@@ -161,7 +161,7 @@ impl Contract for SqlContract {
         // job, and an operator wants "not allowed" reported, not unclaimed.
         Ok(stream
             .text()
-            .is_ok_and(|text| Script::parse(text).opens_recognised()))
+            .is_ok_and(|text| Script::parse(text).opens_recognized()))
     }
 
     fn validate(&self, stream: &Stream) -> Result<ValidationResult, ContractError> {

@@ -86,7 +86,7 @@ pub struct Statement {
     pub line: usize,
     /// The first token's text as written.
     pub keyword: String,
-    /// `None` when the first word is not a recognised keyword.
+    /// `None` when the first word is not a recognized keyword.
     pub kind: Option<Verb>,
 }
 
@@ -158,7 +158,7 @@ impl Script {
 
     /// The first statement's kind, or whether it at least begins with `WITH`.
     #[must_use]
-    pub fn opens_recognised(&self) -> bool {
+    pub fn opens_recognized(&self) -> bool {
         self.statements.first().is_some_and(|statement| {
             statement.kind.is_some() || statement.keyword.eq_ignore_ascii_case("WITH")
         })
@@ -198,7 +198,7 @@ fn classify(tokens: &[&Token]) -> (Option<Verb>, Option<String>) {
     if word != "WITH" {
         let Some(kind) = Verb::of_name(&word) else {
             let message = format!(
-                "begins with {word} at line {}, not a recognised statement",
+                "begins with {word} at line {}, not a recognized statement",
                 first.line
             );
             return (None, Some(message));
@@ -267,9 +267,9 @@ mod tests {
         assert_eq!(script.statements[2].line, 5);
         assert_eq!(script.statements[2].keyword, "select");
         assert_eq!(script.statements[2].path(), "statement 3");
-        assert!(script.opens_recognised());
-        assert!(!Script::parse("").opens_recognised());
-        assert!(!Script::parse("EXPLAIN SELECT 1").opens_recognised());
+        assert!(script.opens_recognized());
+        assert!(!Script::parse("").opens_recognized());
+        assert!(!Script::parse("EXPLAIN SELECT 1").opens_recognized());
     }
 
     #[test]
@@ -290,7 +290,7 @@ mod tests {
                 .message
                 .starts_with("WITH at line 1 introduces no")
         );
-        assert!(script.opens_recognised());
+        assert!(script.opens_recognized());
     }
 
     #[test]
