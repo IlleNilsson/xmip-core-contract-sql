@@ -159,13 +159,11 @@ impl Contract for SqlContract {
         // Text whose first statement begins with a keyword is SQL enough to
         // claim; a bound set does not narrow identify — that is validate's
         // job, and an operator wants "not allowed" reported, not unclaimed.
-        Ok(stream
-            .text()
-            .is_ok_and(|text| Script::parse(text).opens_recognized()))
+        Ok(contract::text(stream)?.is_ok_and(|text| Script::parse(text).opens_recognized()))
     }
 
     fn validate(&self, stream: &Stream) -> Result<ValidationResult, ContractError> {
-        let text = match stream.text() {
+        let text = match contract::text(stream)? {
             Ok(text) => text,
             Err(error) => {
                 return Ok(ValidationResult::of(vec![ValidationIssue::at(
