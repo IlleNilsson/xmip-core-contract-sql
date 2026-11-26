@@ -25,27 +25,46 @@
 //! `MERGE`; `read-only` for `SELECT`, `WITH ... SELECT` and `VALUES`; `tcl`
 //! for `BEGIN`, `START`, `COMMIT` and `ROLLBACK`; `dcl` for `GRANT` and
 //! `REVOKE`. Every issue carries a `path` of the form `statement N`.
+//!
+//! **Built with its `declaration` feature alone** the crate is
+//! [`declaration`], what a Location naming it is configured with and the
+//! name a Validate step names it by, and none of the code above, which is
+//! behind the default feature: what the surfaces' library carries (ADR-0064,
+//! amendment 2026-11-26).
 
+#[cfg(feature = "declaration")]
+pub mod declaration;
+
+#[cfg(feature = "default")]
 pub mod lexer;
+#[cfg(feature = "default")]
 pub mod statement;
 
+#[cfg(feature = "default")]
 use contract::{
     Contract, ContractDescriptor, ContractError, ContractFactory, ContractId, ValidationIssue,
     ValidationResult,
 };
+#[cfg(feature = "default")]
 use sql::Verb;
+#[cfg(feature = "default")]
 use statement::{Class, Script};
+#[cfg(feature = "default")]
 use std::collections::BTreeSet;
+#[cfg(feature = "default")]
 use stream::Stream;
-use xcore::settings::{Applies, Presence, Setting, Settings};
+#[cfg(feature = "default")]
+use xcore::settings::Settings;
 
 /// The statement kinds a reference allows.
+#[cfg(feature = "default")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Allowed {
     kinds: BTreeSet<Verb>,
     reference: String,
 }
 
+#[cfg(feature = "default")]
 impl Allowed {
     /// `select`, `read-only,call`, `dml, ddl`: kind and class words, comma
     /// separated, in any case.
@@ -91,16 +110,19 @@ impl Allowed {
     }
 }
 
+#[cfg(feature = "default")]
 fn names<'a>(words: impl Iterator<Item = &'a str>) -> String {
     words.collect::<Vec<_>>().join(", ")
 }
 
 /// The SQL contract, bare or bound to an allowed set of statement kinds.
+#[cfg(feature = "default")]
 pub struct SqlContract {
     descriptor: ContractDescriptor,
     allowed: Option<Allowed>,
 }
 
+#[cfg(feature = "default")]
 impl SqlContract {
     /// Well-formed statement text, of any kinds.
     #[must_use]
@@ -127,12 +149,14 @@ impl SqlContract {
     }
 }
 
+#[cfg(feature = "default")]
 impl Default for SqlContract {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "default")]
 fn descriptor(id: &str) -> ContractDescriptor {
     ContractDescriptor {
         id: ContractId(id.to_string()),
@@ -141,6 +165,7 @@ fn descriptor(id: &str) -> ContractDescriptor {
     }
 }
 
+#[cfg(feature = "default")]
 impl Contract for SqlContract {
     fn descriptor(&self) -> &ContractDescriptor {
         &self.descriptor
@@ -201,6 +226,7 @@ impl Contract for SqlContract {
 }
 
 /// The statement number a path names, for ordering issues by position.
+#[cfg(feature = "default")]
 fn ordinal(path: Option<&str>) -> usize {
     path.and_then(|p| p.strip_prefix("statement "))
         .and_then(|n| n.parse().ok())
@@ -209,15 +235,17 @@ fn ordinal(path: Option<&str>) -> usize {
 
 /// Loads the contract a Location names: an empty reference is the bare
 /// contract, anything else the allowed kinds, `select,insert` or `read-only`.
+#[cfg(feature = "default")]
 pub struct SqlFactory;
 
+#[cfg(feature = "default")]
 impl ContractFactory for SqlFactory {
     fn technology(&self) -> &'static str {
-        "sql"
+        declaration::NAME
     }
 
     fn settings(&self) -> &'static Settings {
-        SETTINGS
+        declaration::SETTINGS
     }
 
     fn load(&self, reference: &str) -> Result<Box<dyn Contract>, ContractError> {
@@ -227,18 +255,6 @@ impl ContractFactory for SqlFactory {
         Ok(Box::new(SqlContract::allowing(Allowed::parse(reference)?)))
     }
 }
-
-/// What a Location gives this contract (ADR-0064, amendment 2026-09-26).
-const SETTINGS: &Settings = &Settings {
-    technology: env!("CARGO_PKG_NAME"),
-    settings: &[Setting {
-        name: "reference",
-        kind: xcore::settings::Kind::Text,
-        presence: Presence::Optional,
-        meaning: "The statement kinds allowed, select,insert or read-only; left out, all are.",
-        applies: Applies::Both,
-    }],
-};
 
 #[cfg(test)]
 mod tests {
@@ -377,6 +393,8 @@ mod tests {
 
     #[test]
     fn sql_declares_its_settings_and_reads_through_them() {
+        use declaration::SETTINGS;
+        use xcore::settings::Applies;
         assert!(SETTINGS.problems().is_empty(), "{:?}", SETTINGS.problems());
         let given = |name: &str, value: &str| {
             (
